@@ -1,13 +1,39 @@
 use crate::types::{Call, ContractConfig, CreatorStats, GlobalStats, StorageStats};
+use backit_shared::ttl::Retention;
 use soroban_sdk::{contracttype, Address, Bytes, Env};
 
-// ~120 days in ledgers (5s per ledger): 120 * 24 * 3600 / 5 = 2_073_600
-pub const PERSISTENT_LIFETIME_THRESHOLD: u32 = 1_036_800; // ~60 days
-pub const PERSISTENT_BUMP_AMOUNT: u32 = 2_073_600; // ~120 days
+// Retention for call-registry records now comes from `backit_shared::ttl`, so
+// every crate classifies storage the same way and the reasoning lives in one
+// place. See that module for the ledger/time assumptions and rent discussion.
+//
+// Call records are classified `Claimable` because a call's stake and payout
+// remain claimable after settlement. That raises their target TTL from ~120 to
+// ~150 days: strictly longer than before, so nothing that survives today
+// expires sooner after this change.
+const CALL_RETENTION: Retention = Retention::Claimable;
 
-// Instance TTL: ~7 days (instance storage is cheaper, refresh frequently)
-const INSTANCE_LIFETIME_THRESHOLD: u32 = 60_480; // ~3.5 days
-const INSTANCE_BUMP_AMOUNT: u32 = 120_960; // ~7 days
+// Retained as public constants because other modules and tests refer to them.
+// They are now derived from the shared policy rather than hand-written.
+pub const PERSISTENT_LIFETIME_THRESHOLD: u32 = match CALL_RETENTION.policy() {
+    Some(p) => p.threshold,
+    None => 0,
+};
+pub const PERSISTENT_BUMP_AMOUNT: u32 = match CALL_RETENTION.policy() {
+    Some(p) => p.extend_to,
+    None => 0,
+};
+
+// Instance storage holds configuration and counters, governed by the shared
+// `Config` class. Instance is a single entry, so refreshing it on access cannot
+// be used to inflate storage the way a per-record read-renewal can.
+const INSTANCE_LIFETIME_THRESHOLD: u32 = match Retention::Config.policy() {
+    Some(p) => p.threshold,
+    None => 0,
+};
+const INSTANCE_BUMP_AMOUNT: u32 = match Retention::Config.policy() {
+    Some(p) => p.extend_to,
+    None => 0,
+};
 
 #[contracttype]
 pub enum DataKey {
@@ -81,18 +107,21 @@ pub fn set_call(env: &Env, call: &Call) {
     );
 }
 
-/// Retrieve a call by ID from persistent storage, refreshing its TTL on access
+/// Retrieve a call by ID from persistent storage.
+///
+/// **Reads deliberately do not renew.** This function previously extended the
+/// entry's TTL on every access, which meant any address could keep any call
+/// alive indefinitely simply by reading it in a loop — unbounded storage growth
+/// paid for by the contract, and one user's traffic renewing unrelated users'
+/// records. Renewal now happens on the lifecycle writes that touch a call
+/// (`set_call` and the stake/settlement paths), which are authorised and
+/// bounded.
+///
+/// This is a behaviour change and is called out for maintainer review: a call
+/// that is only ever read, never written, will now expire on its own schedule
+/// rather than being kept alive by readers.
 pub fn get_call(env: &Env, call_id: u64) -> Option<Call> {
-    let key = DataKey::Call(call_id);
-    let result: Option<Call> = env.storage().persistent().get(&key);
-    if result.is_some() {
-        env.storage().persistent().extend_ttl(
-            &key,
-            PERSISTENT_LIFETIME_THRESHOLD,
-            PERSISTENT_BUMP_AMOUNT,
-        );
-    }
-    result
+    env.storage().persistent().get(&DataKey::Call(call_id))
 }
 
 /// Check whether a call exists in persistent storage

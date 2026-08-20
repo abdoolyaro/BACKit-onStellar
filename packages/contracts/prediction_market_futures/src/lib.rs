@@ -25,8 +25,10 @@
 
 #![no_std]
 
+use backit_shared::ttl::{self, Retention};
 use soroban_sdk::{
-    contract, contractclient, contracterror, contractimpl, contracttype, token, Address, Bytes, BytesN, Env, Map, Vec,
+    contract, contractclient, contracterror, contractimpl, contracttype, token, Address, Bytes,
+    BytesN, Env, Map, Vec,
 };
 
 /// Describes the price-movement condition that determines the winning outcome (mirrored from prediction_market).
@@ -112,9 +114,9 @@ pub enum FuturesStatus {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FuturesPosition {
     pub contract_id: u64,
-    pub creator: Address, // Long side
+    pub creator: Address,              // Long side
     pub counterparty: Option<Address>, // Short side, optional until accepted
-    pub call_id: u64, // Underlying prediction market ID
+    pub call_id: u64,                  // Underlying prediction market ID
     pub outcome: u32,
     pub strike_probability_bps: u32, // strike probability in basis points (e.g. 5000 = 50%)
     pub expiry_ts: u64,
@@ -137,22 +139,35 @@ fn get_futures_factory(env: &Env) -> Option<Address> {
 
 fn set_futures_factory(env: &Env, factory: &Address) {
     env.storage().instance().set(&DataKey::Factory, factory);
+    ttl::extend_instance(env);
 }
 
 fn get_contract_counter(env: &Env) -> u64 {
-    env.storage().instance().get(&DataKey::ContractCounter).unwrap_or(0)
+    env.storage()
+        .instance()
+        .get(&DataKey::ContractCounter)
+        .unwrap_or(0)
 }
 
 fn set_contract_counter(env: &Env, counter: u64) {
-    env.storage().instance().set(&DataKey::ContractCounter, &counter);
+    env.storage()
+        .instance()
+        .set(&DataKey::ContractCounter, &counter);
+    ttl::extend_instance(env);
 }
 
 fn get_futures_position(env: &Env, contract_id: u64) -> Option<FuturesPosition> {
-    env.storage().persistent().get(&DataKey::FuturesPosition(contract_id))
+    env.storage()
+        .persistent()
+        .get(&DataKey::FuturesPosition(contract_id))
 }
 
 fn set_futures_position(env: &Env, contract_id: u64, position: &FuturesPosition) {
-    env.storage().persistent().set(&DataKey::FuturesPosition(contract_id), position);
+    let key = DataKey::FuturesPosition(contract_id);
+    env.storage().persistent().set(&key, position);
+    // An open futures position is live market state: renewed on the write that
+    // updates it, never on a read, so no caller can refresh another's position.
+    ttl::extend_persistent(env, &key, Retention::Active);
 }
 
 fn get_active_futures(env: &Env, call_id: u64) -> Vec<u64> {
@@ -291,8 +306,8 @@ impl PredictionMarketFutures {
     ) -> Result<(), FuturesError> {
         counterparty.require_auth();
 
-        let mut position = get_futures_position(&env, contract_id)
-            .ok_or(FuturesError::ContractNotFound)?;
+        let mut position =
+            get_futures_position(&env, contract_id).ok_or(FuturesError::ContractNotFound)?;
 
         if position.is_settled {
             return Err(FuturesError::ContractAlreadySettled);
@@ -331,8 +346,8 @@ impl PredictionMarketFutures {
     /// Settles the futures contract and distributes the payouts.
     /// Callable by anyone after `env.ledger().timestamp() >= expiry_ts`.
     pub fn settle_futures(env: Env, contract_id: u64) -> Result<(), FuturesError> {
-        let mut position = get_futures_position(&env, contract_id)
-            .ok_or(FuturesError::ContractNotFound)?;
+        let mut position =
+            get_futures_position(&env, contract_id).ok_or(FuturesError::ContractNotFound)?;
 
         if position.is_settled {
             return Err(FuturesError::ContractAlreadySettled);
@@ -439,8 +454,8 @@ impl PredictionMarketFutures {
         contract_id: u64,
         new_owner: Address,
     ) -> Result<(), FuturesError> {
-        let mut position = get_futures_position(&env, contract_id)
-            .ok_or(FuturesError::ContractNotFound)?;
+        let mut position =
+            get_futures_position(&env, contract_id).ok_or(FuturesError::ContractNotFound)?;
 
         position.creator.require_auth();
 
@@ -460,10 +475,13 @@ impl PredictionMarketFutures {
         contract_id: u64,
         new_owner: Address,
     ) -> Result<(), FuturesError> {
-        let mut position = get_futures_position(&env, contract_id)
-            .ok_or(FuturesError::ContractNotFound)?;
+        let mut position =
+            get_futures_position(&env, contract_id).ok_or(FuturesError::ContractNotFound)?;
 
-        let counterparty = position.counterparty.clone().ok_or(FuturesError::NoCounterparty)?;
+        let counterparty = position
+            .counterparty
+            .clone()
+            .ok_or(FuturesError::NoCounterparty)?;
         counterparty.require_auth();
 
         if position.is_settled {
@@ -482,7 +500,10 @@ impl PredictionMarketFutures {
     }
 
     /// View function returning the FuturesPosition struct details for a contract ID.
-    pub fn get_futures_position(env: Env, contract_id: u64) -> Result<FuturesPosition, FuturesError> {
+    pub fn get_futures_position(
+        env: Env,
+        contract_id: u64,
+    ) -> Result<FuturesPosition, FuturesError> {
         get_futures_position(&env, contract_id).ok_or(FuturesError::ContractNotFound)
     }
 

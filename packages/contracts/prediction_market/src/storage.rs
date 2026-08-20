@@ -1,12 +1,26 @@
 use crate::types::{Call, LimitOrder, MarketConfig, RolloverLink};
+use backit_shared::ttl::Retention;
 use soroban_sdk::{contracttype, Address, Env, Vec};
 
 // #465: Limit orders can live up to 7 days (`MAX_ORDER_TTL_SECS` in lib.rs).
 // Bump generously beyond that so an order's storage entry never expires out
 // from under it before it fills, is cancelled, or is force-refunded.
 // ~7 days in ledgers (5s per ledger): 7 * 24 * 3600 / 5 = 120_960
-pub const ORDER_PERSISTENT_BUMP_AMOUNT: u32 = 120_960; // ~7 days
-pub const ORDER_PERSISTENT_LIFETIME_THRESHOLD: u32 = 60_480; // ~3.5 days
+// Order retention now derives from the shared policy in `backit_shared::ttl`.
+//
+// Orders were previously kept ~7 days. An open order is live market state, so
+// it is classified `Active` (~90 day target). This *lengthens* retention, which
+// costs more rent but removes a real failure mode: an order that outlives its
+// storage entry disappears while still notionally open. The increase is called
+// out in the PR for maintainer review.
+pub const ORDER_PERSISTENT_BUMP_AMOUNT: u32 = match Retention::Active.policy() {
+    Some(p) => p.extend_to,
+    None => 0,
+};
+pub const ORDER_PERSISTENT_LIFETIME_THRESHOLD: u32 = match Retention::Active.policy() {
+    Some(p) => p.threshold,
+    None => 0,
+};
 
 #[contracttype]
 pub enum DataKey {

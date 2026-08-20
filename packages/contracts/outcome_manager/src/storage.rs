@@ -1,3 +1,4 @@
+use backit_shared::ttl::{self, Retention};
 use soroban_sdk::{contracttype, Address, BytesN, Env};
 
 /// Represents a finalized outcome after quorum is reached
@@ -257,7 +258,9 @@ pub fn set_settled_at(env: &Env, call_id: u64, ts: u64) {
 
 /// Read the settlement timestamp for `call_id`, if recorded.
 pub fn get_settled_at_opt(env: &Env, call_id: u64) -> Option<u64> {
-    env.storage().instance().get(&InstanceKey::SettledAt(call_id))
+    env.storage()
+        .instance()
+        .get(&InstanceKey::SettledAt(call_id))
 }
 
 pub fn set_recovery_grace_period(env: &Env, secs: u64) {
@@ -274,10 +277,15 @@ pub fn get_recovery_grace_period(env: &Env) -> u64 {
 }
 
 /// Set (or overwrite) `user`'s designated recovery address.
+///
+/// Retained as [`Retention::Claimable`]: this entry is what allows a recovery
+/// address to claim on the user's behalf once the grace period elapses. If it
+/// expires before the payout is claimed, the recovery path silently stops
+/// working at exactly the moment it is needed.
 pub fn set_recovery_address(env: &Env, user: Address, recovery_address: Address) {
-    env.storage()
-        .persistent()
-        .set(&PersistentKey::RecoveryAddress(user), &recovery_address);
+    let key = PersistentKey::RecoveryAddress(user);
+    env.storage().persistent().set(&key, &recovery_address);
+    ttl::extend_persistent(env, &key, Retention::Claimable);
 }
 
 /// Read `user`'s designated recovery address, if any.

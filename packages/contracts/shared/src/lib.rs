@@ -2,6 +2,8 @@
 
 use soroban_sdk::{Bytes, Env};
 
+pub mod ttl;
+
 // ─── Outcome constants ────────────────────────────────────────────────────────
 
 /// Outcome value representing an UP result.
