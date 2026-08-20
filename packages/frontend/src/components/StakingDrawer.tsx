@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import StakingInterface from "./StakingInterface";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { formatAmount, type Market, type MarketOdds } from "@/lib/backend";
 
 interface Props {
@@ -21,33 +22,56 @@ export default function StakingDrawer({
   odds,
   onStaked,
 }: Props) {
+  const prefersReducedMotion = useReducedMotion();
+
+  // Skip the overlay fade and the panel slide when the user has asked for
+  // reduced motion. The drawer still opens and closes; only the animation goes.
+  const fade = prefersReducedMotion
+    ? {
+        enter: "",
+        enterFrom: "",
+        enterTo: "",
+        leave: "",
+        leaveFrom: "",
+        leaveTo: "",
+      }
+    : {
+        enter: "ease-in-out duration-300",
+        enterFrom: "opacity-0",
+        enterTo: "opacity-100",
+        leave: "ease-in-out duration-200",
+        leaveFrom: "opacity-100",
+        leaveTo: "opacity-0",
+      };
+  const slide = prefersReducedMotion
+    ? {
+        enter: "",
+        enterFrom: "",
+        enterTo: "",
+        leave: "",
+        leaveFrom: "",
+        leaveTo: "",
+      }
+    : {
+        enter: "transform transition ease-in-out duration-500 sm:duration-700",
+        enterFrom: "translate-x-full",
+        enterTo: "translate-x-0",
+        leave: "transform transition ease-in-out duration-500 sm:duration-700",
+        leaveFrom: "translate-x-0",
+        leaveTo: "translate-x-full",
+      };
+
   return (
     <Transition.Root show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-in-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in-out duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
+        <Transition.Child as={Fragment} {...fade}>
           <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-hidden">
           <div className="absolute inset-0 overflow-hidden">
             <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-              <Transition.Child
-                as={Fragment}
-                enter="transform transition ease-in-out duration-500 sm:duration-700"
-                enterFrom="translate-x-full"
-                enterTo="translate-x-0"
-                leave="transform transition ease-in-out duration-500 sm:duration-700"
-                leaveFrom="translate-x-0"
-                leaveTo="translate-x-full"
-              >
+              <Transition.Child as={Fragment} {...slide}>
                 <Dialog.Panel className="pointer-events-auto w-screen max-w-lg">
                   <div className="flex h-full flex-col overflow-y-scroll bg-gray-50/95 backdrop-blur-3xl shadow-2xl">
                     <div className="p-6 sm:p-8 bg-white border-b border-gray-100">

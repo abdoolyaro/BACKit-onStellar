@@ -64,6 +64,21 @@ export default function StakingInterface({ market, odds, onStaked }: Props) {
     !marketClosed &&
     !isStaking;
 
+  // A disabled control that does not say why it is disabled leaves the user
+  // guessing, and a screen reader announces only "dimmed". The first unmet
+  // condition is surfaced, in the order a user would hit them.
+  const disabledReason = (() => {
+    if (isStaking) return "Your stake is being submitted.";
+    if (marketClosed)
+      return "This market is closed, so it can no longer be staked on.";
+    if (!isConnected) return "Connect a wallet to stake.";
+    if (networkMismatch)
+      return "Switch your wallet to the correct network to stake.";
+    if (!selectedSide) return "Choose an outcome to stake on.";
+    if (amountStroops === null) return "Enter a valid stake amount.";
+    return null;
+  })();
+
   // Clear cached transaction state whenever the account or network changes so
   // a stale hash/error from a previous wallet cannot linger in the view.
   useEffect(() => {
@@ -172,6 +187,8 @@ export default function StakingInterface({ market, odds, onStaked }: Props) {
             step="1"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "stake-error" : undefined}
             className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-indigo-600 hover:accent-indigo-700 transition-all"
           />
         </div>
@@ -180,7 +197,12 @@ export default function StakingInterface({ market, odds, onStaked }: Props) {
           {["10", "50", "250", "500"].map((v) => (
             <button
               key={v}
+              type="button"
               onClick={() => setAmount(v)}
+              // Without aria-pressed the selected preset is conveyed only by
+              // its indigo fill, which is invisible to anyone not seeing colour.
+              aria-pressed={amount === v}
+              aria-label={`Stake ${v} ${market.stakeToken}`}
               className="py-2.5 text-xs font-bold border border-gray-100 rounded-xl hover:bg-indigo-50 hover:border-indigo-100 hover:text-indigo-600 transition-all text-gray-500 bg-white"
             >
               {v}
@@ -197,7 +219,14 @@ export default function StakingInterface({ market, odds, onStaked }: Props) {
             return (
               <button
                 key={pct}
+                type="button"
                 onClick={() => setAmount(String(val))}
+                aria-pressed={active}
+                aria-label={
+                  pct === 100
+                    ? `Stake maximum, ${val} ${market.stakeToken}`
+                    : `Stake ${pct} percent, ${val} ${market.stakeToken}`
+                }
                 className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                   active
                     ? "bg-indigo-600 text-white border-indigo-600"
@@ -249,6 +278,7 @@ export default function StakingInterface({ market, odds, onStaked }: Props) {
 
       {error && (
         <p
+          id="stake-error"
           role="alert"
           className="mb-4 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2"
         >
@@ -265,9 +295,19 @@ export default function StakingInterface({ market, odds, onStaked }: Props) {
       <NetworkMismatchBanner />
 
       {/* Stake button */}
+      {/* Announced via aria-describedby rather than a live region: it is a
+          static explanation of the button's state, not a change to report. */}
+      {disabledReason && (
+        <p id="stake-submit-reason" className="sr-only">
+          {disabledReason}
+        </p>
+      )}
+
       <button
+        type="button"
         onClick={handleStake}
         disabled={!canSubmit}
+        aria-describedby={disabledReason ? "stake-submit-reason" : undefined}
         className={`w-full py-6 rounded-3xl font-black text-xl shadow-2xl transition-all duration-300 transform active:scale-95 flex items-center justify-center gap-3 ${
           !canSubmit
             ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
