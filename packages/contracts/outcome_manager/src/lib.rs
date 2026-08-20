@@ -7,13 +7,16 @@ mod errors;
 mod events;
 #[cfg(test)]
 mod fuzz_tests;
+mod rotation;
 mod storage;
 mod test;
-mod rotation;
+#[cfg(test)]
+mod ttl_tests;
 mod verification;
 
 pub use storage::SignedOutcome;
 
+use backit_shared::ttl::{self, Retention};
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, IntoVal, Map, Symbol, Vec};
 
@@ -630,6 +633,10 @@ impl OutcomeManager {
             timestamp: signed.timestamp,
         });
         env.storage().persistent().set(&vote_key, &votes_for_call);
+        // Votes belong to an unresolved outcome, so they are renewed on the
+        // write that adds them rather than on read: renewing on read would let
+        // any caller keep any call's votes alive indefinitely.
+        ttl::extend_persistent(&env, &vote_key, Retention::Active);
 
         let vote_key = TempKey::VoteCount(outcome_hash.clone(), signed.call_id);
         let votes: u32 = env.storage().temporary().get(&vote_key).unwrap_or(0);
@@ -1335,7 +1342,9 @@ impl OutcomeManager {
         let (window_secs, min_observations) = get_twap_config(&env);
         match try_compute_twap(&observations, end_ts, window_secs, min_observations) {
             Some(twap) => twap,
-            None => soroban_sdk::panic_with_error!(&env, OutcomeError::InsufficientPriceObservations),
+            None => {
+                soroban_sdk::panic_with_error!(&env, OutcomeError::InsufficientPriceObservations)
+            }
         }
     }
 
