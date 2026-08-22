@@ -33,6 +33,8 @@ import { EventStoreModule } from './event-store/event-store.module';
 import { GraphqlModule } from './graphql/graphql.module';
 import { WebhooksModule } from './webhooks/webhook.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { IdempotencyModule } from './idempotency/idempotency.module';
+import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
 
 @Module({
   imports: [
@@ -81,9 +83,13 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     GraphqlModule,
     WebhooksModule,
     ReconciliationModule,
+    IdempotencyModule,
   ],
   controllers: [],
-  providers: [{ provide: APP_INTERCEPTOR, useClass: LoggingInterceptor }],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
