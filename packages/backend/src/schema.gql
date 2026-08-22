@@ -1,0 +1,186 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Call {
+  createdAt: DateTime!
+
+  """The user who created this call, resolved via DataLoader"""
+  creator: User
+  creatorAddress: String!
+  description: String
+  endsAt: DateTime
+  finalPrice: String
+  id: ID!
+
+  """Whether the currently authenticated user has bookmarked this call"""
+  isBookmarked: Boolean
+  isHidden: Boolean!
+  reportCount: Int!
+  resolvedAt: DateTime
+
+  """All stakes placed on this call"""
+  stakes: [Stake!]
+  status: CallStatus!
+  title: String!
+  totalNoStake: String!
+  totalYesStake: String!
+  updatedAt: DateTime!
+}
+
+input CallFilterInput {
+  creatorAddress: String
+  search: String
+  status: String
+}
+
+input CallSortInput {
+  direction: String = "DESC"
+  field: String = "createdAt"
+}
+
+"""Lifecycle status of a prediction call/market"""
+enum CallStatus {
+  DRAFT
+  OPEN
+  PAUSED
+  RESOLVED_NO
+  RESOLVED_YES
+  SETTLING
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+"""Type of social feed to query"""
+enum FeedType {
+  """Calls from users you follow"""
+  FOLLOWING
+
+  """Algorithmic feed of recommended calls"""
+  FOR_YOU
+
+  """Trending calls by engagement"""
+  TRENDING
+}
+
+type LeaderboardEntry {
+  avatarUrl: String
+  createdAt: DateTime!
+  id: ID!
+  lostCalls: Int!
+
+  """Period identifier: all | month"""
+  period: String!
+  rank: Int!
+  snapshotDate: DateTime!
+  totalCalls: Int!
+
+  """Net USDC profit"""
+  totalProfit: Float!
+  userId: String!
+  username: String!
+
+  """Win rate as a percentage (0-100)"""
+  winRate: Float!
+  wonCalls: Int!
+}
+
+type LeaderboardPage {
+  data: [LeaderboardEntry!]!
+  limit: Int!
+  page: Int!
+  pages: Int!
+  period: String!
+  total: Int!
+}
+
+"""Time period for leaderboard ranking"""
+enum LeaderboardPeriod {
+  """All-time rankings"""
+  ALL_TIME
+
+  """Rankings for the past 30 days"""
+  MONTHLY
+
+  """Rankings for the past 7 days"""
+  WEEKLY
+}
+
+input PaginationInput {
+  limit: Int = 20
+  page: Int = 1
+}
+
+type Query {
+  call(id: String!): Call
+
+  """Paginated list of prediction calls with optional filtering"""
+  calls(filter: CallFilterInput, pagination: PaginationInput, sort: CallSortInput): [Call!]!
+
+  """Social feed of prediction calls — FOR_YOU, FOLLOWING, or TRENDING"""
+  feed(pagination: PaginationInput, type: FeedType! = FOR_YOU): [Call!]!
+
+  """Ranked list of top predictors for a given time period"""
+  leaderboard(pagination: PaginationInput, period: LeaderboardPeriod! = ALL_TIME): LeaderboardPage!
+
+  """Returns the authenticated caller's own profile"""
+  me: User
+
+  """Full-text search across calls and users"""
+  search(
+    """Search query string (min 1 char)"""
+    query: String!
+  ): SearchResult!
+
+  """Fetch a user's public profile by wallet address"""
+  user(address: String!): User
+}
+
+type SearchResult {
+  """Calls whose title / content matches the search query"""
+  calls: [Call!]!
+
+  """Users whose wallet address matches the search query"""
+  users: [User!]!
+}
+
+type Stake {
+  amount: Float!
+  callId: String!
+  createdAt: DateTime!
+  id: ID!
+  userAddress: String!
+}
+
+type User {
+  avatarCid: String
+  banned: Boolean!
+  bestWinStreak: Int!
+  bio: String
+  createdAt: DateTime!
+  currentWinStreak: Int!
+  displayName: String
+  email: String
+  followerCount: Int
+
+  """Paginated list of users who follow this user"""
+  followers(pagination: PaginationInput): UserPage
+
+  """Paginated list of users this user follows"""
+  following(pagination: PaginationInput): UserPage
+  followingCount: Int
+  id: ID!
+  referralCode: String
+  updatedAt: DateTime!
+  walletAddress: String!
+}
+
+type UserPage {
+  data: [User!]!
+  limit: Int!
+  page: Int!
+  total: Int!
+}
