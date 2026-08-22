@@ -14,6 +14,7 @@ import { SignedPriceData, OraclePublicKeyResponse } from './oracle.interfaces';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_ORACLE_SIGNING } from '../common/queues/queues.constants';
+import { UseIdempotency } from '../idempotency/use-idempotency.decorator';
 
 @ApiTags('Oracle')
 @Controller('oracle')
@@ -35,6 +36,7 @@ export class OracleSigningController {
   }
 
   @Post('sign')
+  @UseIdempotency()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Sign a price data payload',
@@ -52,6 +54,7 @@ export class OracleSigningController {
   }
 
   @Post('sign/async')
+  @UseIdempotency()
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Enqueue a price signing job',

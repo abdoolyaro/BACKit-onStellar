@@ -25,6 +25,7 @@ import { PrepareCallDto } from './dto/prepare-call.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { BookmarksService } from '../bookmarks/bookmarks.service';
+import { UseIdempotency } from '../idempotency/use-idempotency.decorator';
 
 interface Paginated<T> {
   data: T[];
@@ -109,6 +110,7 @@ export class CallsController {
   }
 
   @Post('prepare')
+  @UseIdempotency()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Pin call content to IPFS and return CID for on-chain creation',

@@ -6,6 +6,7 @@ import { IsString, IsNotEmpty } from 'class-validator';
 import { SimulateTxDto } from './dto/simulate-tx.dto';
 import { SimulationResultDto } from './dto/simulation-result.dto';
 import { THROTTLER_GLOBAL_NAME } from '../throttler/throttler.constants';
+import { UseIdempotency } from '../idempotency/use-idempotency.decorator';
 
 class RelayTxDto {
   @IsString()
@@ -36,6 +37,7 @@ export class RelayController {
   }
 
   @Post('tx')
+  @UseIdempotency()
   @ApiOperation({
     summary: 'Sponsor a transaction by co-signing and submitting',
   })
